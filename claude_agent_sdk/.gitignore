@@ -1,0 +1,37 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+.python-version
+
+# Claude Code settings
+.claude-code/
+/CLAUDE.md
+
+# Package manager lock files (optional for tutorials)
+uv.lock
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Workspace created at runtime by 08_Dynamic_workflows.ipynb
+orbitcart_data/
+
+# macOS
+.DS_Store
+
+# Runtime artifacts of scheduled_repository_reviewer. The root .gitignore
+# anchors demo_repo/ at its two documented paths; the unanchored entry
+# below covers any other execution directory.
+.last_review_session
+.last_review_session.tmp
+.review.lock
+demo_repo/
