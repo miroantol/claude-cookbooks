@@ -57,8 +57,12 @@ fly volumes create data --app chief-of-staff-agent --region fra --size 1
 fly secrets set --app chief-of-staff-agent \
   ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   AGENT_AUTH_TOKEN="$(openssl rand -base64 32)"
-fly deploy --config deploy/fly/fly.toml --dockerfile deploy/Dockerfile
+fly deploy . --config deploy/fly/fly.toml --dockerfile deploy/Dockerfile
 ```
+
+> The leading `.` pins the build context to `chief_of_staff_agent/`. Without it,
+> flyctl treats `deploy/fly/` (the config's directory) as the context and can't
+> find the Dockerfile or COPY the project files.
 
 ## Talk to it
 

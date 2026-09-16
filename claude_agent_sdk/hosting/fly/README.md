@@ -50,8 +50,12 @@ fly secrets set --app agent-sdk-hosting \
   AGENT_AUTH_TOKEN="$(openssl rand -base64 32)"
 
 # 4. Deploy the shared image.
-fly deploy --config hosting/fly/fly.toml --dockerfile hosting/Dockerfile
+fly deploy . --config hosting/fly/fly.toml --dockerfile hosting/Dockerfile
 ```
+
+> The leading `.` pins the build context to `claude_agent_sdk/`. Without it,
+> flyctl treats `hosting/fly/` (the config's directory) as the context and can't
+> find the Dockerfile or COPY `research_agent/` and `utils/`.
 
 ## Talk to it
 

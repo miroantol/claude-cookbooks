@@ -43,8 +43,10 @@ fly secrets set --app "$APP" \
   ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   AGENT_AUTH_TOKEN="$AUTH_TOKEN"
 
-# 4. Deploy.
-fly deploy --app "$APP" --config "$CONFIG" --dockerfile "$DOCKERFILE" --regions "$REGION"
+# 4. Deploy. The leading "." pins the build context to the agent dir (cwd);
+#    without it flyctl treats the --config file's directory as the context and
+#    can't find the Dockerfile or COPY the project files.
+fly deploy . --app "$APP" --config "$CONFIG" --dockerfile "$DOCKERFILE" --regions "$REGION"
 
 URL="https://$APP.fly.dev"
 cat <<EOF

@@ -5,7 +5,11 @@
 # scripts/, financial_data/, CLAUDE.md), pointing at this config and Dockerfile:
 #
 #   cd claude_agent_sdk/chief_of_staff_agent/
-#   fly deploy --config deploy/fly/fly.toml --dockerfile deploy/Dockerfile
+#   fly deploy . --config deploy/fly/fly.toml --dockerfile deploy/Dockerfile
+#
+# The leading "." matters: it pins the build context to chief_of_staff_agent/.
+# Without it, flyctl uses this file's directory (deploy/fly/) as the context and
+# fails to find the Dockerfile or COPY the project files.
 #
 # See deploy/fly/README.md for first-time setup (app + volume + secrets).
 
@@ -13,8 +17,10 @@ app = "chief-of-staff-agent"
 primary_region = "fra"   # Frankfurt; pick one near you: `fly platform regions`
 
 [build]
-  # Path is relative to the build context (chief_of_staff_agent/), not this file.
-  dockerfile = "deploy/Dockerfile"
+  # Resolved relative to THIS file's directory (deploy/fly/), so "../Dockerfile"
+  # points at deploy/Dockerfile. The deploy command also passes --dockerfile,
+  # which overrides this; it's here so a bare `fly deploy .` still works.
+  dockerfile = "../Dockerfile"
 
 [env]
   # server.py stores session transcripts + the session map here; the [mounts]

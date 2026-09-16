@@ -44,7 +44,7 @@ fly secrets set --app "$APP" \
   AGENT_AUTH_TOKEN="$AUTH_TOKEN"
 
 # 4. Deploy the shared image.
-fly deploy --app "$APP" --config "$CONFIG" --dockerfile "$DOCKERFILE" --regions "$REGION"
+fly deploy . --app "$APP" --config "$CONFIG" --dockerfile "$DOCKERFILE" --regions "$REGION"
 
 URL="https://$APP.fly.dev"
 cat <<EOF
