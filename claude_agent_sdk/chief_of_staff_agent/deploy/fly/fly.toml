@@ -1,0 +1,60 @@
+# Fly.io deployment for the Chief of Staff agent.
+#
+# `app` must be globally unique. Change it, or let `fly launch` set it.
+# Deploy from chief_of_staff_agent/ (the build context that holds .claude/,
+# scripts/, financial_data/, CLAUDE.md), pointing at this config and Dockerfile:
+#
+#   cd claude_agent_sdk/chief_of_staff_agent/
+#   fly deploy --config deploy/fly/fly.toml --dockerfile deploy/Dockerfile
+#
+# See deploy/fly/README.md for first-time setup (app + volume + secrets).
+
+app = "chief-of-staff-agent"
+primary_region = "fra"   # Frankfurt; pick one near you: `fly platform regions`
+
+[build]
+  # Path is relative to the build context (chief_of_staff_agent/), not this file.
+  dockerfile = "deploy/Dockerfile"
+
+[env]
+  # server.py stores session transcripts + the session map here; the [mounts]
+  # volume makes them survive restarts. Matches the Dockerfile default.
+  CLAUDE_CONFIG_DIR = "/data"
+  # The agent's cwd — where .claude/ and CLAUDE.md are loaded from. Matches the
+  # Dockerfile WORKDIR; don't change one without the other.
+  AGENT_CWD = "/app"
+  # The notebook uses Opus. Uncomment to run cheap:
+  # MODEL = "claude-sonnet-4-6"
+
+[processes]
+  app = "serve"   # any non-empty CMD; entrypoint.sh ignores args and serves
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Scale to zero when idle; wake on the next request. Keep this a single
+  # machine — one Fly volume attaches to one machine (see the README).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    method = "get"
+    path = "/health"
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+
+[[vm]]
+  # This agent spawns subagents (Task) and runs Python scripts via Bash next to
+  # the Node CLI and the server — give it more headroom than the research agent.
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Persist session transcripts across restarts. Create the volume once before the
+# first deploy (same name + region as this app):
+#   fly volumes create data --size 1 --region fra
+[mounts]
+  source = "data"
+  destination = "/data"
