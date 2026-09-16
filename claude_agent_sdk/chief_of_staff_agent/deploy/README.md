@@ -16,9 +16,17 @@ deploy/
   fly/              ← Fly.io deploy (fly.toml + deploy.sh + README)
 ```
 
+## Browser UI
+
+Open the app's root URL (`https://<app>.fly.dev/`) for a minimal chat page
+([`ui.html`](ui.html), served at `/`). Paste the `AGENT_AUTH_TOKEN` into the
+field once (kept in `localStorage`), pick a session id, and chat — slash
+commands like `/budget-impact …` work straight from the box. No curl needed.
+
 ## Interface
 
 ```
+GET  /                                 → 200 text/html (chat UI)       (open)
 GET  /health                           → 200 {"status":"ok"}          (open)
 POST /sessions/{session_id}/messages   → text/event-stream            (token-gated)
      Body: {"prompt":"...", "output_style":"executive" | null}

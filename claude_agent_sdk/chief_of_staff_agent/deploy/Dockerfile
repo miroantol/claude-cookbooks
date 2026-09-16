@@ -41,7 +41,7 @@ COPY financial_data/ ./financial_data/
 # The hosting layer: server + entrypoint. `deploy` must be an importable package
 # (uvicorn deploy.server:app), and the hooks referenced by settings.local.json
 # must stay executable.
-COPY deploy/server.py deploy/entrypoint.sh ./deploy/
+COPY deploy/server.py deploy/entrypoint.sh deploy/ui.html ./deploy/
 RUN chmod +x deploy/entrypoint.sh .claude/hooks/*.py \
  && touch deploy/__init__.py
 

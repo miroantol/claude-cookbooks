@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Chief of Staff Agent</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b; --border: #2a2f3a;
+    --text: #e6e8ee; --muted: #8b93a3; --accent: #6ea8fe; --accent-2: #3b82f6;
+    --user: #223049; --err: #ff6b6b; --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  header .dot.ok { background: var(--ok); }
+  header .dot.err { background: var(--err); }
+  input, textarea, button, select {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  header input { min-width: 120px; }
+  header input#token { min-width: 200px; flex: 1; }
+  button { cursor: pointer; background: var(--accent-2); border-color: var(--accent-2); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  #chat { flex: 1; overflow-y: auto; padding: 18px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 780px; width: fit-content; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user); border: 1px solid #2c3d5c; }
+  .msg.agent { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
+  .msg.error { align-self: flex-start; background: #2a1518; border: 1px solid #5a2530; color: var(--err); }
+  .activity { align-self: flex-start; color: var(--muted); font-size: 13px; font-style: italic; padding: 0 4px; }
+  .role { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  footer { padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--border); }
+  .composer { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
+  .composer textarea { flex: 1; resize: none; min-height: 44px; max-height: 180px; }
+  .hint { max-width: 900px; margin: 6px auto 0; color: var(--muted); font-size: 12px; }
+  .hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🧭 Chief of Staff</h1>
+    <span id="status" class="dot" title="unknown"></span>
+    <input id="token" type="password" placeholder="AGENT_AUTH_TOKEN" autocomplete="off" />
+    <input id="session" type="text" placeholder="session id" value="web-1" />
+    <button id="reset" title="Start a fresh conversation">New chat</button>
+  </header>
+
+  <div id="chat"></div>
+
+  <footer>
+    <div class="composer">
+      <textarea id="prompt" placeholder="Ask the Chief of Staff…  (Enter to send, Shift+Enter for newline)"></textarea>
+      <button id="send">Send</button>
+    </div>
+    <div class="hint">
+      Try a slash command: <code>/budget-impact hiring 3 senior engineers</code> ·
+      <code>/talent-scan backend</code> · <code>/strategic-brief Q3 plan</code>
+    </div>
+  </footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const chat = $("chat"), tokenEl = $("token"), sessionEl = $("session"),
+      promptEl = $("prompt"), sendBtn = $("send"), resetBtn = $("reset"), statusDot = $("status");
+
+// Remember token + session per browser (convenience only).
+try {
+  tokenEl.value = localStorage.getItem("cos_token") || "";
+  sessionEl.value = localStorage.getItem("cos_session") || "web-1";
+} catch {}
+tokenEl.addEventListener("change", () => { try { localStorage.setItem("cos_token", tokenEl.value.trim()); } catch {} });
+sessionEl.addEventListener("change", () => { try { localStorage.setItem("cos_session", sessionEl.value.trim()); } catch {} });
+
+function addMsg(cls, text, role) {
+  const el = document.createElement("div");
+  el.className = "msg " + cls;
+  if (role) { const r = document.createElement("div"); r.className = "role"; r.textContent = role; el.appendChild(r); }
+  const body = document.createElement("span"); body.textContent = text || ""; el.appendChild(body);
+  chat.appendChild(el); chat.scrollTop = chat.scrollHeight;
+  return body; // return the text node holder so we can append to it
+}
+function addActivity(text) {
+  const el = document.createElement("div"); el.className = "activity"; el.textContent = text;
+  chat.appendChild(el); chat.scrollTop = chat.scrollHeight;
+}
+
+// Liveness check.
+fetch("/health").then(r => r.ok ? r.json() : Promise.reject())
+  .then(() => { statusDot.className = "dot ok"; statusDot.title = "online"; })
+  .catch(() => { statusDot.className = "dot err"; statusDot.title = "offline"; });
+
+resetBtn.addEventListener("click", () => {
+  const base = (sessionEl.value.trim() || "web").replace(/-\d+$/, "");
+  sessionEl.value = base + "-" + Date.now().toString().slice(-6);
+  try { localStorage.setItem("cos_session", sessionEl.value); } catch {}
+  chat.innerHTML = "";
+  addActivity("Started a new conversation (" + sessionEl.value + ").");
+});
+
+promptEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+sendBtn.addEventListener("click", send);
+
+let busy = false;
+async function send() {
+  if (busy) return;
+  const prompt = promptEl.value.trim();
+  const token = tokenEl.value.trim();
+  const session = (sessionEl.value.trim() || "web-1");
+  if (!prompt) return;
+  if (!token) { addMsg("error", "Enter the AGENT_AUTH_TOKEN in the field at the top first."); return; }
+
+  busy = true; sendBtn.disabled = true; promptEl.value = "";
+  addMsg("user", prompt, "you");
+
+  let agentBody = null;         // holder for the streaming agent bubble
+  let gotText = false;
+  let finalResult = null;
+
+  try {
+    const res = await fetch("/sessions/" + encodeURIComponent(session) + "/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ prompt })
+    });
+    if (res.status === 401) { addMsg("error", "Unauthorized — the token is wrong. Fix it in the field above."); return; }
+    if (!res.ok) { addMsg("error", "Server error " + res.status + ": " + (await res.text())); return; }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true }).replace(/\r/g, "");
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, i); buf = buf.slice(i + 2);
+        let event = "message", data = "";
+        for (const line of raw.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) data += (data ? "\n" : "") + line.slice(5).replace(/^ /, "");
+        }
+        if (event === "done") continue;
+        if (event === "error") { addMsg("error", tryParse(data)?.message || data); continue; }
+
+        const m = tryParse(data); if (!m) continue;
+        const t = (m.type || "");
+        if (t.includes("Assistant") && Array.isArray(m.content)) {
+          for (const block of m.content) {
+            if (typeof block?.text === "string" && block.text.trim()) {
+              if (!agentBody) agentBody = addMsg("agent", "", "chief of staff");
+              agentBody.textContent += (gotText ? "\n\n" : "") + block.text;
+              gotText = true; chat.scrollTop = chat.scrollHeight;
+            } else if (block?.name) {
+              addActivity("🤖 " + block.name + "()");
+            }
+          }
+        } else if (t.includes("Result")) {
+          if (typeof m.result === "string") finalResult = m.result;
+        }
+      }
+    }
+    // Fallback: the whole answer only came back on the ResultMessage.
+    if (!gotText && finalResult) addMsg("agent", finalResult, "chief of staff");
+  } catch (err) {
+    addMsg("error", "Network error: " + (err?.message || err));
+  } finally {
+    busy = false; sendBtn.disabled = false; promptEl.focus();
+  }
+}
+
+function tryParse(s) { try { return JSON.parse(s); } catch { return null; } }
+</script>
+</body>
+</html>

@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
@@ -130,6 +130,21 @@ def _require_token(authorization: str | None = Header(default=None)) -> None:
     expected = f"Bearer {AUTH_TOKEN}"
     if not authorization or not secrets.compare_digest(authorization, expected):
         raise HTTPException(status_code=401, detail="missing or invalid token")
+
+
+UI_PATH = Path(__file__).with_name("ui.html")
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> HTMLResponse:
+    # A minimal browser chat UI. Unauthenticated (it holds no secrets — the
+    # caller types the bearer token into the page, which sends it only on
+    # /sessions/* requests). Falls back to a hint if the file isn't bundled.
+    if UI_PATH.exists():
+        return HTMLResponse(UI_PATH.read_text())
+    return HTMLResponse(
+        "<h1>Chief of Staff Agent</h1><p>API only. POST /sessions/&lt;id&gt;/messages.</p>"
+    )
 
 
 @app.get("/health")
