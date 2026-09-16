@@ -2,9 +2,9 @@
 
 This directory deploys the research agent from
 [`00_The_one_liner_research_agent.ipynb`](../00_The_one_liner_research_agent.ipynb)
-through three tiers: local Docker, Modal, and Kubernetes. The agent, the
-container image, and the HTTP interface are the **same** across all three —
-only the operational machinery around the container changes.
+through several tiers: local Docker, Modal, Fly.io, and Kubernetes. The agent,
+the container image, and the HTTP interface are the **same** across all of them
+— only the operational machinery around the container changes.
 
 Walk through [`07_Hosting_the_agent.ipynb`](../07_Hosting_the_agent.ipynb) for
 the full narrative.
@@ -66,6 +66,7 @@ hosting/
   .env.example         ← ANTHROPIC_API_KEY, MODEL
   docker/              ← Tier 1: local Docker / docker-compose
   modal/               ← Tier 2: Modal Sandbox
+  fly/                 ← Tier 2b: Fly.io Machine (public URL + volume)
   kubernetes/          ← Tier 3: pod-per-session on your own k8s cluster
 ```
 

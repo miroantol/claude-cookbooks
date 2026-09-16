@@ -1,0 +1,67 @@
+# Fly.io deployment for the research agent — runs the SAME hosting/Dockerfile
+# image as every other tier, so only the operational machinery changes.
+#
+# `app` must be globally unique. Change it, or let `fly launch` set it for you.
+# Deploy from claude_agent_sdk/ (the build context that holds research_agent/
+# and utils/), pointing at this config and the shared Dockerfile:
+#
+#   cd claude_agent_sdk/
+#   fly deploy --config hosting/fly/fly.toml --dockerfile hosting/Dockerfile
+#
+# See hosting/fly/README.md for the full first-time setup (app + volume + secrets).
+
+app = "agent-sdk-hosting"
+primary_region = "fra"   # Frankfurt; pick one near you: fly platform regions
+
+[build]
+  # Redundant with --dockerfile on the command line, but keeps `fly deploy`
+  # working if someone forgets the flag. Path is relative to the build context
+  # (claude_agent_sdk/), not to this file.
+  dockerfile = "hosting/Dockerfile"
+
+[env]
+  # server.py stores session transcripts + the session map under here. The
+  # [mounts] volume below makes it survive restarts. Matches the Dockerfile
+  # default, spelled out so it's obvious what the volume is for.
+  CLAUDE_CONFIG_DIR = "/data"
+  # Sonnet keeps runs cheap. Override to match notebook 00 with:
+  #   fly secrets set MODEL=claude-opus-4-6   (or set it here)
+  # MODEL = "claude-sonnet-4-6"
+
+# ENTRYPOINT is ./hosting/entrypoint.sh; this appends "serve" so it starts the
+# FastAPI server instead of the ephemeral run-once path.
+[processes]
+  app = "serve"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Scale to zero when idle (like Modal's tunnel) and wake on the next request.
+  # NOTE: a single Fly volume attaches to one machine, so keep this at one
+  # machine. To run several, give each its own volume and move session state to
+  # a SessionStore — see the README's persistence note.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  # Fly's proxy probes liveness against the unauthenticated /health route.
+  [[http_service.checks]]
+    method = "get"
+    path = "/health"
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+
+[[vm]]
+  # The agent shells out to the Node CLI and runs a Python server alongside it;
+  # 512 MB is the comfortable floor. Bump if you see OOM kills in `fly logs`.
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# Persist session transcripts across restarts. Create the volume once before the
+# first deploy (same name, same region as this app):
+#   fly volumes create data --size 1 --region fra
+[mounts]
+  source = "data"
+  destination = "/data"
